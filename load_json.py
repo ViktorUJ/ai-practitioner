@@ -29,8 +29,8 @@ import subprocess
 import hashlib
 from typing import List, Dict, Any
 
-# Процент файлов для обработки (0.05 = 1%)
-PERCENT_FILES = 0.01
+# Процент файлов для обработки (0.01 = 1%)
+PERCENT_FILES = 1
 # Прогресс-бар (fallback)
 try:
     from tqdm import tqdm
