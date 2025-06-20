@@ -8,6 +8,7 @@
 - Проверка новых коммитов: пропуск, если репозиторий не изменился
 - Выбор изменённых JSON через git diff между коммитами
 - Хранение хешей JSON в коллекции ChromaDB (`filehash_collection`)
+- Настройка обработки % файлов (текущая реализация: 5%)
 - Коллекции:
     - `mia_collection` – чанки документов
     - `commit_collection` – история коммитов
@@ -28,6 +29,8 @@ import subprocess
 import hashlib
 from typing import List, Dict, Any
 
+# Процент файлов для обработки (0.05 = 1%)
+PERCENT_FILES = 0.01
 # Прогресс-бар (fallback)
 try:
     from tqdm import tqdm
@@ -133,9 +136,13 @@ def process_changed_docs(changed: List[str]):
             doc_id = data.get('id', rel)
             docs_to_embed.append({'id': doc_id, 'text': content})
 
-    # Upserting file hashes батчами
+    # Upserting file hashes батчами с fallback batch size
     if fh_ids:
-        max_batch = filehash_collection.get_max_batch_size()
+        # fallback, если метод отсутствует
+        try:
+            max_batch = filehash_collection.get_max_batch_size()
+        except AttributeError:
+            max_batch = 5000
         print(f"Upserting {len(fh_ids)} file hashes in batches of {max_batch}...")
         for start in tqdm(range(0, len(fh_ids), max_batch), desc="Upserting file hashes", unit="batch"):
             end = min(start + max_batch, len(fh_ids))
@@ -146,7 +153,7 @@ def process_changed_docs(changed: List[str]):
                 metadatas=fh_metas[start:end]
             )
 
-    # Эмбеддинг чанков
+    # Эмбеддинг и вставка чанков
     if docs_to_embed:
         print(f"Embedding and storing {len(docs_to_embed)} docs...")
         for doc in tqdm(docs_to_embed, desc="Embedding docs", unit="doc"):
@@ -191,7 +198,7 @@ if __name__ == '__main__':
         metadatas=[{'commit': curr}]
     )
 
-    # Определение списка файлов для обработки
+    # Получаем список изменённых файлов
     if not last:
         changed = []
         for root, _, files in os.walk(ARTSMIA_JSON_PATH):
@@ -200,6 +207,11 @@ if __name__ == '__main__':
                     changed.append(os.path.relpath(os.path.join(root, f), ARTSMIA_LOCAL_PATH))
     else:
         changed = get_changed_files(last, curr)
+
+    # Ограничение по проценту
+    max_to_proc = max(1, int(len(changed) * PERCENT_FILES))
+    print(f"Limiting to {max_to_proc} files ({PERCENT_FILES*100}% of {len(changed)})")
+    changed = changed[:max_to_proc]
 
     print(f"Processing {len(changed)} JSON files...")
     if changed:
