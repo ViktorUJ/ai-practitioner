@@ -1,0 +1,11 @@
+services:
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: chromadb
+    environment:
+      - IS_PERSISTENT=TRUE
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./chroma_db:/chroma/chroma
+    restart: unless-stopped
